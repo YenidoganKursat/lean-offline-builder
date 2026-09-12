@@ -1,0 +1,65 @@
+name: Build Lean Offline Bundles
+on:
+  workflow_dispatch:
+jobs:
+  mathlib4321:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install elan
+        run: |
+          curl -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: Build exact Mathlib 4.32.1
+        run: |
+          git clone --depth 1 --branch v4.32.1 https://github.com/leanprover-community/mathlib4.git mathlib4
+          cd mathlib4
+          elan toolchain install "$(cat lean-toolchain)"
+          lake build
+          printf 'import Mathlib\n#check Real.exp\nexample (a b : Nat) : a + b = b + a := Nat.add_comm a b\n' > /tmp/smoke.lean
+          lake env lean /tmp/smoke.lean
+      - name: Pack Mathlib
+        run: |
+          tar --exclude='.git' -I 'zstd -8 -T0' -cf mathlib-v4.32.1-linux-x86_64.tar.zst mathlib4
+          sha256sum mathlib-v4.32.1-linux-x86_64.tar.zst > mathlib-v4.32.1-linux-x86_64.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mathlib-v4.32.1-linux-x86_64
+          path: |
+            mathlib-v4.32.1-linux-x86_64.tar.zst
+            mathlib-v4.32.1-linux-x86_64.sha256
+          compression-level: 0
+          retention-days: 7
+
+  physlib4330:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install elan
+        run: |
+          curl -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: Build exact Physlib 4.33.0 environment
+        run: |
+          git clone --depth 1 https://github.com/leanprover-community/physlib.git physlib
+          cd physlib
+          git checkout 16380e4e262486af598ee1c8a6c685f6b3591153
+          elan toolchain install "$(cat lean-toolchain)"
+          lake update
+          lake build
+          printf 'import Physlib\n#check Real.exp\n' > /tmp/smoke.lean
+          lake env lean /tmp/smoke.lean
+      - name: Pack Physlib
+        run: |
+          tar --exclude='.git' --exclude='physlib/.lake/packages/*/.git' -I 'zstd -8 -T0' -cf physlib-v4.33.0-linux-x86_64.tar.zst physlib
+          sha256sum physlib-v4.33.0-linux-x86_64.tar.zst > physlib-v4.33.0-linux-x86_64.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: physlib-v4.33.0-linux-x86_64
+          path: |
+            physlib-v4.33.0-linux-x86_64.tar.zst
+            physlib-v4.33.0-linux-x86_64.sha256
+          compression-level: 0
+          retention-days: 7
