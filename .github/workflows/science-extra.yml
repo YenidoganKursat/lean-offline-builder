@@ -1,0 +1,100 @@
+name: Build Extra Lean Science Libraries
+on:
+  workflow_dispatch:
+jobs:
+  libs:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {slug: leancert, repo: alerad/leancert, sha: 4ea18bb66dfcd7f18f260bc25302400f5a3cafd7}
+          - {slug: qiclean, repo: LionSR/QICLean, sha: cdaa636d1f41560f7caca7077c11068229cb9727}
+          - {slug: qeclean, repo: Stavan-Jain/QECLean, sha: 9e7d12119e44dd9266b3e4dab71bcae149ff7db0}
+          - {slug: tnlean, repo: LionSR/TNLean, sha: 4129cbabe68637a787bb35c8567c6ab96a9d8628}
+          - {slug: statlean, repo: StatLean/Stat-Lean, sha: 0e16c01ad98bfc76110491598c334ce8aec273ee}
+          - {slug: statslt, repo: YuanheZ/lean-stat-learning-theory, sha: d0f506f0a695018265dccb33bcb05e2f5ca1c876}
+          - {slug: torchlean, repo: lean-dojo/TorchLean, sha: 4ec1f62bf8308e2dc7f4d73e64205e66270ccfd1}
+          - {slug: probly, repo: lecopivo/Probly, sha: 44db605408610f3784b14e7e5a713b72d742e808}
+          - {slug: vcvio, repo: alik-eth/VCV-io, sha: 42576a5e606146a13f7c0049db6280fee441df63}
+          - {slug: starlib, repo: nktkt/starlib, sha: 7b2c61d51b683483cca3b3747cb5c865b5d63d4c}
+          - {slug: duper, repo: leanprover-community/duper, sha: 34f6d228626adf1921f9fb314b0b6bd02c1a82b5}
+          - {slug: safeverify, repo: GasStationManager/SafeVerify, sha: b291b588a53999a7e837dda61c7dbfe8c550c814}
+          - {slug: irislean, repo: leanprover-community/iris-lean, sha: 728a17140939e49af9236f7cb0d037da9ec52435}
+          - {slug: leanhammer, repo: JOSHCLUNE/LeanHammer, sha: 21886b7ffbdf32017655a9d6e699f98779046533}
+    steps:
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zstd libopenblas-dev cmake ninja-build pkg-config clang git
+          curl -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: Fetch source
+        run: |
+          git init src
+          cd src
+          git remote add origin https://github.com/${{ matrix.repo }}.git
+          git fetch --depth 1 origin ${{ matrix.sha }}
+          git checkout --detach FETCH_HEAD      - name: Resolve toolchain and build
+        shell: bash
+        run: |
+          cd src
+          tc=""
+          if [ -f lean-toolchain ]; then tc=$(cat lean-toolchain); fi
+          if [ -z "$tc" ]; then tc=leanprover/lean4:v4.33.0; fi
+          elan toolchain install "$tc"
+          printf '%s\n' "$tc" > TOOLCHAIN_USED
+          set +e
+          if [ ! -f lake-manifest.json ]; then lake update > lake-update.log 2>&1; fi
+          lake exe cache get > lake-cache.log 2>&1
+          lake build > build.log 2>&1
+          code=$?
+          set -e
+          echo "$code" > BUILD_EXIT_CODE
+          echo "Build exit code: $code"
+          tail -80 build.log || true
+      - name: Pack source and build
+        run: |
+          tar --exclude='src/.git' -I 'zstd -5 -T0' -cf ${{ matrix.slug }}.tar.zst src
+          sha256sum ${{ matrix.slug }}.tar.zst > ${{ matrix.slug }}.sha256
+          split -b 340M -d -a 2 ${{ matrix.slug }}.tar.zst ${{ matrix.slug }}.part-      - uses: actions/upload-artifact@v4
+        with:
+          name: extra-${{ matrix.slug }}-part-00
+          path: ${{ matrix.slug }}.part-00
+          compression-level: 0
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: extra-${{ matrix.slug }}-part-01
+          path: ${{ matrix.slug }}.part-01
+          compression-level: 0
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: extra-${{ matrix.slug }}-part-02
+          path: ${{ matrix.slug }}.part-02
+          compression-level: 0
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: extra-${{ matrix.slug }}-part-03
+          path: ${{ matrix.slug }}.part-03
+          compression-level: 0
+          if-no-files-found: ignore      - uses: actions/upload-artifact@v4
+        with:
+          name: extra-${{ matrix.slug }}-part-04
+          path: ${{ matrix.slug }}.part-04
+          compression-level: 0
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: extra-${{ matrix.slug }}-part-05
+          path: ${{ matrix.slug }}.part-05
+          compression-level: 0
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: extra-${{ matrix.slug }}-checksum
+          path: ${{ matrix.slug }}.sha256
+          compression-level: 0
