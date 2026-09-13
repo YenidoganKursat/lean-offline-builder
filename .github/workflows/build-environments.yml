@@ -1,0 +1,147 @@
+name: Build Lean Science Environments
+on:
+  workflow_dispatch:
+
+jobs:
+  environments:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix:
+        include:
+          - name: SciLean
+            slug: scilean
+            repo: https://github.com/lecopivo/SciLean.git
+            ref: 95f8119a2884e9c41f82136523bd5568ea7075c5
+          - name: LeanForControl
+            slug: leanforcontrol
+            repo: https://github.com/AnandGokhale/LeanForControl.git
+            ref: 8bf403a97437207ac061a55d7444641efb548217
+          - name: crnt-lean
+            slug: crnt-lean
+            repo: https://github.com/marpaia/crnt-lean.git
+            ref: 99137993e729c8add247388718a22a0e0f393dab
+          - name: Ripple
+            slug: ripple
+            repo: https://github.com/zinan-huang/Ripple.git
+            ref: e9ce148d3975f9e75bb9724e01ec763ad9b368a9
+          - name: Sparkle
+            slug: sparkle
+            repo: https://github.com/Verilean/sparkle.git
+            ref: 6eee2ecbd25d841874c0218f3132e4a3a7561040
+          - name: Circuitlib
+            slug: circuitlib
+            repo: https://github.com/matthunz/circuitlib.git
+            ref: 29a1d820c2ba8b5689210a843534d84649ecb5b3
+          - name: Lean-MLIR
+            slug: lean-mlir
+            repo: https://github.com/opencompl/lean-mlir.git
+            ref: b8c4a771319a044854a4bbb49b8821381ef86ff8
+          - name: Lean-HoG
+            slug: lean-hog
+            repo: https://github.com/katjabercic/Lean-HoG.git
+            ref: 5570915ea176254abbc7f9bd4da0569ab6775372
+          - name: Lean4CStheory
+            slug: lean4cstheory
+            repo: https://github.com/Lean4CStheory/Lean4CStheory-Library.git
+            ref: 7f0a215d60c83906e15cbc753f7dc7e7a5d3f935
+    steps:
+      - name: Install system deps and elan
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zstd libopenblas-dev cmake ninja-build pkg-config clang
+          curl -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: Fetch exact source
+        run: |
+          git init src
+          cd src
+          git remote add origin "${{ matrix.repo }}"
+          git fetch --depth 1 origin "${{ matrix.ref }}"
+          git checkout --detach FETCH_HEAD
+          git rev-parse HEAD | tee COMMIT_SHA
+      - name: Resolve and build best effort
+        shell: bash
+        run: |
+          cd src
+          tc="$(cat lean-toolchain)"
+          elan toolchain install "$tc"
+          printf '%s\n' "$tc" > TOOLCHAIN_USED
+          if [ ! -f lake-manifest.json ]; then
+            set +e
+            lake update > lake-update.log 2>&1
+            echo $? > LAKE_UPDATE_EXIT_CODE
+            set -e
+          fi
+          set +e
+          lake exe cache get > lake-cache.log 2>&1
+          echo $? > CACHE_EXIT_CODE
+          lake build > build.log 2>&1
+          code=$?
+          echo "$code" > BUILD_EXIT_CODE
+          set -e
+          echo "Build exit code: $code"
+          tail -100 build.log || true
+      - name: Pack environment
+        run: |
+          tar --exclude='src/.git' --exclude='src/.lake/packages/*/.git' -I 'zstd -6 -T0' -cf "${{ matrix.slug }}-linux-x86_64-env.tar.zst" src
+          sha256sum "${{ matrix.slug }}-linux-x86_64-env.tar.zst" > "${{ matrix.slug }}-linux-x86_64-env.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lean-env-${{ matrix.slug }}-linux-x86_64
+          path: |
+            ${{ matrix.slug }}-linux-x86_64-env.tar.zst
+            ${{ matrix.slug }}-linux-x86_64-env.sha256
+          compression-level: 0
+          retention-days: 7
+
+  aeneas_charon:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - name: Install deps and elan
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zstd build-essential pkg-config libssl-dev
+          curl -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: Fetch exact sources
+        run: |
+          git clone https://github.com/AeneasVerif/aeneas.git aeneas
+          git -C aeneas checkout 505b6ca35217e7be5c96c3e2f8045edfbdf47291
+          git clone https://github.com/AeneasVerif/charon.git charon
+          git -C charon checkout 3ff4f28060d55c3fcb3d504629122e6d74101372
+      - name: Build Lean backend and Charon best effort
+        shell: bash
+        run: |
+          tc="$(cat aeneas/backends/lean/lean-toolchain)"
+          elan toolchain install "$tc"
+          cd aeneas/backends/lean
+          if [ ! -f lake-manifest.json ]; then
+            set +e
+            lake update > lake-update.log 2>&1
+            set -e
+          fi
+          set +e
+          lake build > build.log 2>&1
+          echo $? > BUILD_EXIT_CODE
+          set -e
+          cd ../../../charon
+          set +e
+          cargo build --release > charon-build.log 2>&1
+          echo $? > CHARON_BUILD_EXIT_CODE
+          set -e
+      - name: Pack Aeneas and Charon
+        run: |
+          tar --exclude='aeneas/.git' --exclude='aeneas/backends/lean/.lake/packages/*/.git' --exclude='charon/.git' -I 'zstd -6 -T0' -cf aeneas-charon-linux-x86_64-env.tar.zst aeneas charon
+          sha256sum aeneas-charon-linux-x86_64-env.tar.zst > aeneas-charon-linux-x86_64-env.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lean-env-aeneas-charon-linux-x86_64
+          path: |
+            aeneas-charon-linux-x86_64-env.tar.zst
+            aeneas-charon-linux-x86_64-env.sha256
+          compression-level: 0
+          retention-days: 7
