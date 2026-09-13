@@ -1,0 +1,107 @@
+name: Build Lean Foundation
+on:
+  workflow_dispatch:
+jobs:
+  foundation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - slug: mathlib4321
+            repo: https://github.com/leanprover-community/mathlib4.git
+            ref: v4.32.1
+            import_name: Mathlib
+          - slug: physlib4330
+            repo: https://github.com/leanprover-community/physlib.git
+            ref: 16380e4e262486af598ee1c8a6c685f6b3591153
+            import_name: Physlib
+    steps:
+      - name: Install deps and elan
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zstd libopenblas-dev cmake ninja-build pkg-config clang
+          curl -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: Fetch exact source
+        run: |
+          git init src
+          cd src
+          git remote add origin "${{ matrix.repo }}"
+          git fetch --depth 1 origin "${{ matrix.ref }}"
+          git checkout --detach FETCH_HEAD
+          git rev-parse HEAD | tee COMMIT_SHA
+      - name: Build and smoke test
+        run: |
+          cd src
+          elan toolchain install "$(cat lean-toolchain)"
+          lake exe cache get || true
+          lake build
+          printf 'import %s\n#check Real.exp\nexample (a b : Nat) : a + b = b + a := Nat.add_comm a b\n' "${{ matrix.import_name }}" > /tmp/smoke.lean
+          lake env lean /tmp/smoke.lean
+          echo 0 > BUILD_EXIT_CODE
+      - name: Pack into connector-safe chunks
+        run: |
+          tar --exclude='src/.git' --exclude='src/.lake/packages/*/.git' -cf - src | zstd -6 -T0 | split -b 350M -d -a 2 - "${{ matrix.slug }}.part-"
+          cat "${{ matrix.slug }}.part-"* | sha256sum > "${{ matrix.slug }}.sha256"
+          ls -lh "${{ matrix.slug }}.part-"*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.slug }}-part-00
+          path: ${{ matrix.slug }}.part-00
+          compression-level: 0
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.slug }}-part-01
+          path: ${{ matrix.slug }}.part-01
+          compression-level: 0
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.slug }}-part-02
+          path: ${{ matrix.slug }}.part-02
+          compression-level: 0
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.slug }}-part-03
+          path: ${{ matrix.slug }}.part-03
+          compression-level: 0
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.slug }}-part-04
+          path: ${{ matrix.slug }}.part-04
+          compression-level: 0
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.slug }}-part-05
+          path: ${{ matrix.slug }}.part-05
+          compression-level: 0
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.slug }}-part-06
+          path: ${{ matrix.slug }}.part-06
+          compression-level: 0
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.slug }}-part-07
+          path: ${{ matrix.slug }}.part-07
+          compression-level: 0
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.slug }}-part-08
+          path: ${{ matrix.slug }}.part-08
+          compression-level: 0
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.slug }}-checksum
+          path: ${{ matrix.slug }}.sha256
+          compression-level: 0
