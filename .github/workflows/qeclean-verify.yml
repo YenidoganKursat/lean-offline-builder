@@ -1,0 +1,74 @@
+name: Verify QECLean
+on:
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zstd git
+          curl -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: Fetch exact QECLean
+        run: |
+          git clone https://github.com/Stavan-Jain/QECLean.git src
+          cd src
+          git checkout 9e7d12119e44dd9266b3e4dab71bcae149ff7db0
+      - name: Build
+        run: |
+          cd src
+          tc=$(cat lean-toolchain)
+          elan toolchain install "$tc"
+          lake exe cache get || true
+          lake build
+          printf 'import QECLean\n' > /tmp/qec_smoke.lean
+          lake env lean /tmp/qec_smoke.lean
+      - name: Pack slim source and build
+        run: |
+          tar --exclude='src/.git' -I 'zstd -5 -T0' -cf qeclean.tar.zst src
+          sha256sum qeclean.tar.zst > qeclean.sha256
+          split -b 340M -d -a 2 qeclean.tar.zst qeclean.part-
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qeclean-part-00
+          path: qeclean.part-00
+          compression-level: 0
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qeclean-part-01
+          path: qeclean.part-01
+          compression-level: 0
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qeclean-part-02
+          path: qeclean.part-02
+          compression-level: 0
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qeclean-part-03
+          path: qeclean.part-03
+          compression-level: 0
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qeclean-part-04
+          path: qeclean.part-04
+          compression-level: 0
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qeclean-part-05
+          path: qeclean.part-05
+          compression-level: 0
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qeclean-checksum
+          path: qeclean.sha256
+          compression-level: 0
