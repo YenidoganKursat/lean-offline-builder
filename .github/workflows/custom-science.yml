@@ -1,0 +1,44 @@
+name: Build Custom ScienceLean
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Lean
+        run: |
+          curl -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: Build ScienceLean
+        run: |
+          cd custom/ScienceLean
+          elan toolchain install "$(cat lean-toolchain)"
+          lake update
+          lake exe cache get || true
+          lake build
+          printf 'import ScienceLean\n#check ScienceLean.Estimation.scalarKalmanGain_le_one\n#check ScienceLean.PhotoPhysics.quantumYield_le_one\n' > /tmp/science_smoke.lean
+          lake env lean /tmp/science_smoke.lean
+      - name: Pack
+        run: |
+          tar --exclude='custom/ScienceLean/.git' -I 'zstd -5 -T0' -cf ScienceLean.tar.zst custom/ScienceLean
+          sha256sum ScienceLean.tar.zst > ScienceLean.sha256
+          split -b 340M -d -a 2 ScienceLean.tar.zst ScienceLean.part-
+      - uses: actions/upload-artifact@v4
+        with:
+          name: custom-science-part-00
+          path: ScienceLean.part-00
+          compression-level: 0
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: custom-science-part-01
+          path: ScienceLean.part-01
+          compression-level: 0
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: custom-science-checksum
+          path: ScienceLean.sha256
+          compression-level: 0
