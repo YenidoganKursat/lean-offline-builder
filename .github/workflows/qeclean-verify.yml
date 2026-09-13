@@ -17,14 +17,24 @@ jobs:
           git clone https://github.com/Stavan-Jain/QECLean.git src
           cd src
           git checkout 9e7d12119e44dd9266b3e4dab71bcae149ff7db0
-      - name: Build
+      - name: Add swap for heavy kernel checks
+        run: |
+          sudo fallocate -l 20G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          free -h
+      - name: Build light then full QEC
         run: |
           cd src
           tc=$(cat lean-toolchain)
           elan toolchain install "$tc"
           lake exe cache get || true
-          lake build
-          printf 'import QECLean\n' > /tmp/qec_smoke.lean
+          lake build QECLight
+          printf 'import QECLight\n#check QEC.Stabilizer.PauliGroup\n' > /tmp/qec_light_smoke.lean
+          lake env lean /tmp/qec_light_smoke.lean
+          lake build QEC
+          printf 'import QEC\n' > /tmp/qec_smoke.lean
           lake env lean /tmp/qec_smoke.lean
       - name: Pack slim source and build
         run: |
