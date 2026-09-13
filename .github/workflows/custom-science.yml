@@ -17,7 +17,7 @@ jobs:
           elan toolchain install "$(cat lean-toolchain)"
           lake update
           lake exe cache get || true
-          lake build
+          lake build ScienceLean
           printf 'import ScienceLean\n#check ScienceLean.Estimation.scalarKalmanGain_le_one\n#check ScienceLean.PhotoPhysics.quantumYield_le_one\n' > /tmp/science_smoke.lean
           lake env lean /tmp/science_smoke.lean
       - name: Pack
