@@ -2,6 +2,8 @@ import Mathlib
 
 namespace ScienceLean
 
+noncomputable section
+
 namespace Chemistry
 
 def equilibriumConstant (ΔG R T : ℝ) : ℝ := Real.exp (-ΔG / (R * T))
