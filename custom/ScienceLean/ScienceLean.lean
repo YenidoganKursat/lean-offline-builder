@@ -120,4 +120,6 @@ theorem weightedVariance_nonneg (w x₁ x₂ : ℝ)
 
 end SignalProcessing
 
+end
+
 end ScienceLean
