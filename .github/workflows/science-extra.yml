@@ -36,7 +36,8 @@ jobs:
           cd src
           git remote add origin https://github.com/${{ matrix.repo }}.git
           git fetch --depth 1 origin ${{ matrix.sha }}
-          git checkout --detach FETCH_HEAD      - name: Resolve toolchain and build
+          git checkout --detach FETCH_HEAD
+      - name: Resolve toolchain and build
         shell: bash
         run: |
           cd src
@@ -58,7 +59,8 @@ jobs:
         run: |
           tar --exclude='src/.git' -I 'zstd -5 -T0' -cf ${{ matrix.slug }}.tar.zst src
           sha256sum ${{ matrix.slug }}.tar.zst > ${{ matrix.slug }}.sha256
-          split -b 340M -d -a 2 ${{ matrix.slug }}.tar.zst ${{ matrix.slug }}.part-      - uses: actions/upload-artifact@v4
+          split -b 340M -d -a 2 ${{ matrix.slug }}.tar.zst ${{ matrix.slug }}.part-
+      - uses: actions/upload-artifact@v4
         with:
           name: extra-${{ matrix.slug }}-part-00
           path: ${{ matrix.slug }}.part-00
