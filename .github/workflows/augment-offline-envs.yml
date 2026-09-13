@@ -46,6 +46,8 @@ jobs:
               subprocess.run(['git','-C',str(d),'remote','remove','origin'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
               subprocess.run(['git','-C',str(d),'remote','add','origin',url],check=True)
               subprocess.run(['git','-C',str(d),'fetch','--depth','1','origin',rev],check=True)
+              subprocess.run(['git','-C',str(d),'clean','-fdx'],check=True)
+              subprocess.run(['git','-C',str(d),'reset','--hard','FETCH_HEAD'],check=True)
               subprocess.run(['git','-C',str(d),'checkout','-q','--detach','FETCH_HEAD'],check=True)
           PY2
           mkdir -p work/src/.offline-libs
