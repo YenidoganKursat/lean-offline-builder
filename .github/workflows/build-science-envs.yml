@@ -20,7 +20,8 @@ jobs:
           - tc: leanprover/lean4:v4.30.0
             slug: v4.30.0
           - tc: leanprover/lean4:v4.31.0
-            slug: v4.31.0          - tc: leanprover/lean4:v4.32.1
+            slug: v4.31.0
+          - tc: leanprover/lean4:v4.32.1
             slug: v4.32.1
           - tc: leanprover/lean4:v4.33.0
             slug: v4.33.0
@@ -41,7 +42,8 @@ jobs:
           root="$(dirname "$(dirname "$(elan which lean)")")"
           cd ..
           tar -I 'zstd -8 -T0' -cf "lean-${{ matrix.slug }}-linux-x86_64.tar.zst" -C "$(dirname "$root")" "$(basename "$root")"
-          sha256sum "lean-${{ matrix.slug }}-linux-x86_64.tar.zst" > "lean-${{ matrix.slug }}-linux-x86_64.sha256"      - uses: actions/upload-artifact@v4
+          sha256sum "lean-${{ matrix.slug }}-linux-x86_64.tar.zst" > "lean-${{ matrix.slug }}-linux-x86_64.sha256"
+      - uses: actions/upload-artifact@v4
         with:
           name: lean-toolchain-${{ matrix.slug }}-linux-x86_64
           path: |
