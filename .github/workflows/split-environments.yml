@@ -1,0 +1,71 @@
+name: Split Lean Environments
+on:
+  workflow_dispatch:
+jobs:
+  split:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {slug: leanforcontrol, artifact: lean-env-leanforcontrol-linux-x86_64}
+          - {slug: scilean, artifact: lean-env-scilean-linux-x86_64}
+          - {slug: crnt-lean, artifact: lean-env-crnt-lean-linux-x86_64}
+          - {slug: lean4cstheory, artifact: lean-env-lean4cstheory-linux-x86_64}
+          - {slug: lean-hog, artifact: lean-env-lean-hog-linux-x86_64}
+          - {slug: sparkle, artifact: lean-env-sparkle-linux-x86_64}
+          - {slug: circuitlib, artifact: lean-env-circuitlib-linux-x86_64}
+    steps:
+      - name: Download environment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 34741369952 --repo ${{ github.repository }} -n "${{ matrix.artifact }}" -D env
+          find env -maxdepth 2 -type f -ls
+      - name: Split bundle
+        run: |
+          f=$(find env -type f -name '*.tar.zst' | head -1)
+          split -b 350M -d -a 2 "$f" "${{ matrix.slug }}.part-"
+          sha256sum "$f" > "${{ matrix.slug }}.sha256"
+          ls -lh ${{ matrix.slug }}.part-*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: env-${{ matrix.slug }}-part-00
+          path: ${{ matrix.slug }}.part-00
+          compression-level: 0
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: env-${{ matrix.slug }}-part-01
+          path: ${{ matrix.slug }}.part-01
+          compression-level: 0
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: env-${{ matrix.slug }}-part-02
+          path: ${{ matrix.slug }}.part-02
+          compression-level: 0
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: env-${{ matrix.slug }}-part-03
+          path: ${{ matrix.slug }}.part-03
+          compression-level: 0
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: env-${{ matrix.slug }}-part-04
+          path: ${{ matrix.slug }}.part-04
+          compression-level: 0
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: env-${{ matrix.slug }}-part-05
+          path: ${{ matrix.slug }}.part-05
+          compression-level: 0
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: env-${{ matrix.slug }}-checksum
+          path: ${{ matrix.slug }}.sha256
+          compression-level: 0
