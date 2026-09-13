@@ -1,0 +1,119 @@
+name: Augment Offline Lean Environments
+on:
+  workflow_dispatch:
+jobs:
+  augment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {slug: 'leanforcontrol', artifact: 'lean-env-leanforcontrol-linux-x86_64'}
+          - {slug: 'scilean', artifact: 'lean-env-scilean-linux-x86_64'}
+          - {slug: 'crnt-lean', artifact: 'lean-env-crnt-lean-linux-x86_64'}
+          - {slug: 'lean4cstheory', artifact: 'lean-env-lean4cstheory-linux-x86_64'}
+          - {slug: 'lean-hog', artifact: 'lean-env-lean-hog-linux-x86_64'}
+          - {slug: 'sparkle', artifact: 'lean-env-sparkle-linux-x86_64'}
+          - {slug: 'circuitlib', artifact: 'lean-env-circuitlib-linux-x86_64'}
+    steps:
+      - name: Install deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zstd libopenblas-dev
+          curl -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: Download successful build artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download 34741369952 --repo ${{ github.repository }} -n "${{ matrix.artifact }}" -D incoming
+      - name: Restore dependency git metadata
+        run: |
+          mkdir work
+          f=$(find incoming -name '*.tar.zst' | head -1)
+          tar -I zstd -xf "$f" -C work
+          python3 - <<'PY2'
+          import json, subprocess, pathlib
+          root=pathlib.Path('work/src')
+          m=json.loads((root/'lake-manifest.json').read_text())
+          for x in m.get('packages',[]):
+              if x.get('type')!='git': continue
+              name=x['name']; url=x['url']; rev=x['rev']
+              d=root/'.lake'/'packages'/name
+              if not d.exists():
+                  raise SystemExit(f'missing dependency directory: {name}')
+              subprocess.run(['git','-C',str(d),'init','-q'],check=True)
+              subprocess.run(['git','-C',str(d),'remote','remove','origin'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+              subprocess.run(['git','-C',str(d),'remote','add','origin',url],check=True)
+              subprocess.run(['git','-C',str(d),'fetch','--depth','1','origin',rev],check=True)
+              subprocess.run(['git','-C',str(d),'checkout','-q','--detach','FETCH_HEAD'],check=True)
+          PY2
+          mkdir -p work/src/.offline-libs
+          cp -a /usr/lib/x86_64-linux-gnu/openblas-pthread/*.so* work/src/.offline-libs/ 2>/dev/null || true
+      - name: Prove offline build
+        run: |
+          cd work/src
+          elan toolchain install "$(cat lean-toolchain)"
+          git config --global url."https://invalid.invalid/".insteadOf "https://github.com/"
+          here="$(pwd)"
+          export LD_LIBRARY_PATH="$here/.offline-libs:${LD_LIBRARY_PATH:-}"
+          lake build
+          echo OFFLINE_BUILD_OK > OFFLINE_STATUS
+      - name: Pack connector-safe chunks
+        run: |
+          tar -cf - -C work src | zstd -6 -T0 | split -b 300M -d -a 2 - "${{ matrix.slug }}.part-"
+          cat "${{ matrix.slug }}.part-"* | sha256sum > "${{ matrix.slug }}.sha256"
+          ls -lh "${{ matrix.slug }}.part-"*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: offline-${{ matrix.slug }}-part-00
+          path: ${{ matrix.slug }}.part-00
+          compression-level: 0
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: offline-${{ matrix.slug }}-part-01
+          path: ${{ matrix.slug }}.part-01
+          compression-level: 0
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: offline-${{ matrix.slug }}-part-02
+          path: ${{ matrix.slug }}.part-02
+          compression-level: 0
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: offline-${{ matrix.slug }}-part-03
+          path: ${{ matrix.slug }}.part-03
+          compression-level: 0
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: offline-${{ matrix.slug }}-part-04
+          path: ${{ matrix.slug }}.part-04
+          compression-level: 0
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: offline-${{ matrix.slug }}-part-05
+          path: ${{ matrix.slug }}.part-05
+          compression-level: 0
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: offline-${{ matrix.slug }}-part-06
+          path: ${{ matrix.slug }}.part-06
+          compression-level: 0
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: offline-${{ matrix.slug }}-part-07
+          path: ${{ matrix.slug }}.part-07
+          compression-level: 0
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: offline-${{ matrix.slug }}-checksum
+          path: ${{ matrix.slug }}.sha256
+          compression-level: 0
