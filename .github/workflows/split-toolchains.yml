@@ -1,0 +1,52 @@
+name: Split Lean Toolchain Artifacts
+on:
+  workflow_dispatch:
+
+jobs:
+  split:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        slug:
+          - v4.28.0-rc1
+          - v4.28.0
+          - v4.30.0-rc1
+          - v4.30.0-rc2
+          - v4.30.0
+          - v4.31.0
+          - v4.32.1
+          - v4.33.0
+          - v4.33.1
+          - nightly-2025-12-01
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Download original artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir original
+          gh run download 34741314947 --repo "${{ github.repository }}" -n "lean-toolchain-${{ matrix.slug }}-linux-x86_64" -D original
+          ls -lh original
+      - name: Split tarball
+        run: |
+          f="$(find original -name '*.tar.zst' -type f | head -1)"
+          cp original/*.sha256 checksum.sha256
+          split -b 350M -d -a 2 "$f" "lean-${{ matrix.slug }}.part-"
+          ls -lh lean-${{ matrix.slug }}.part-* checksum.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: split-toolchain-${{ matrix.slug }}-part-00
+          path: |
+            lean-${{ matrix.slug }}.part-00
+            checksum.sha256
+          compression-level: 0
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: split-toolchain-${{ matrix.slug }}-part-01
+          path: lean-${{ matrix.slug }}.part-01
+          compression-level: 0
+          retention-days: 7
